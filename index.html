@@ -216,7 +216,7 @@
         };
 
         // Variabel global
-        const URL = "https://teachablemachine.withgoogle.com/models/d8zap63bU/";
+        const URL = "https://teachablemachine.withgoogle.com/models/FkCbizl1d/";
         let model, webcam, labelContainer, maxPredictions;
         let currentPlayer = null;
         let currentQuestionIndex = 0;
@@ -282,7 +282,7 @@
                 labelContainer.childNodes[i].innerHTML = classPrediction;
                 
                 // Cek akurasi 90% atau lebih
-                if (probability >= 0.8 && playerData[className] && !isRecognitionPaused) {
+                if (probability >= 0.6 && playerData[className] && !isRecognitionPaused) {
                     isRecognitionPaused = true;
                     showConfirmation(className);
                     break;

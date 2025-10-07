@@ -281,7 +281,7 @@
                 labelContainer.childNodes[i].innerHTML = classPrediction;
                 
                 // Cek akurasi 90% atau lebih
-                if (probability >= 0.5 && playerData[className] && !isRecognitionPaused) {
+                if (probability >= 0.9 && playerData[className] && !isRecognitionPaused) {
                     isRecognitionPaused = true;
                     showConfirmation(className);
                     break;

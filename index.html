@@ -41,7 +41,7 @@
     <div class="container mx-auto px-4 py-8">
         <!-- Judul -->
         <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-white mb-2">🌊 Belajar Siklus Air 🌊</h1>
+            <h1 class="text-4xl font-bold text-white mb-2">🌊 Siklus Air 🌊</h1>
             <p class="text-blue-100">Belajar siklus air dengan tingkat kesulitan yang disesuaikan untukmu!</p>
         </div>
 
@@ -221,6 +221,7 @@
         let currentPlayer = null;
         let currentQuestionIndex = 0;
         let isRecognitionPaused = false;
+        let backgroundMusic = null;
 
         // Inisialisasi kamera dan model
         async function init() {
@@ -281,7 +282,7 @@
                 labelContainer.childNodes[i].innerHTML = classPrediction;
                 
                 // Cek akurasi 90% atau lebih
-                if (probability >= 0.9 && playerData[className] && !isRecognitionPaused) {
+                if (probability >= 0.6 && playerData[className] && !isRecognitionPaused) {
                     isRecognitionPaused = true;
                     showConfirmation(className);
                     break;
@@ -297,13 +298,56 @@
             greetingText.textContent = greeting;
             modal.classList.remove('hidden');
             
-            // Text to Speech
+            // Text to Speech dengan suara Indonesia yang lebih baik
             if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(greeting);
-                utterance.lang = 'id-ID';
-                utterance.rate = 0.8;
-                utterance.pitch = 1;
-                speechSynthesis.speak(utterance);
+                // Tunggu voices dimuat
+                const speakGreeting = () => {
+                    const voices = speechSynthesis.getVoices();
+                    const utterance = new SpeechSynthesisUtterance(greeting);
+                    
+                    // Prioritas pencarian voice Indonesia
+                    let indonesianVoice = voices.find(voice => 
+                        voice.lang === 'id-ID' && voice.name.toLowerCase().includes('google')
+                    ) || voices.find(voice => 
+                        voice.lang === 'id-ID'
+                    ) || voices.find(voice => 
+                        voice.lang.startsWith('id')
+                    ) || voices.find(voice => 
+                        voice.name.toLowerCase().includes('indonesia')
+                    ) || voices.find(voice => 
+                        voice.name.toLowerCase().includes('damayanti') ||
+                        voice.name.toLowerCase().includes('andika')
+                    );
+                    
+                    if (indonesianVoice) {
+                        utterance.voice = indonesianVoice;
+                        console.log('Using voice:', indonesianVoice.name, indonesianVoice.lang);
+                    }
+                    
+                    utterance.lang = 'id-ID';
+                    utterance.rate = 0.8;
+                    utterance.pitch = 1.0;
+                    utterance.volume = 0.9;
+                    
+                    speechSynthesis.speak(utterance);
+                };
+                
+                // Tunggu voices dimuat dengan timeout
+                const waitForVoices = () => {
+                    const voices = speechSynthesis.getVoices();
+                    if (voices.length > 0) {
+                        speakGreeting();
+                    } else {
+                        setTimeout(waitForVoices, 100);
+                    }
+                };
+                
+                if (speechSynthesis.getVoices().length === 0) {
+                    speechSynthesis.addEventListener('voiceschanged', speakGreeting, { once: true });
+                    setTimeout(waitForVoices, 100);
+                } else {
+                    speakGreeting();
+                }
             }
             
             // Simpan nama pemain sementara
@@ -333,6 +377,9 @@
             document.getElementById('player-level').textContent = `Level: ${player.level}`;
             document.getElementById('player-info').classList.remove('hidden');
             
+            // Mulai musik latar
+            startBackgroundMusic();
+            
             // Sembunyikan webcam dan tampilkan game
             document.getElementById('webcam-section').classList.add('hidden');
             document.getElementById('game-area').classList.remove('hidden');
@@ -340,6 +387,25 @@
             // Reset dan mulai soal
             currentQuestionIndex = 0;
             showQuestion();
+        }
+
+        function startBackgroundMusic() {
+            if (!backgroundMusic) {
+                backgroundMusic = new Audio('https://xppfmghrhhrejnopnyir.supabase.co/storage/v1/object/public/ewan/Funny%20Happy%20Cartoon%20Animation%20Background%20Music%20For%20Videos.mp3');
+                backgroundMusic.loop = true;
+                backgroundMusic.volume = 0.3;
+            }
+            
+            backgroundMusic.play().catch(error => {
+                console.log('Autoplay prevented:', error);
+            });
+        }
+
+        function stopBackgroundMusic() {
+            if (backgroundMusic) {
+                backgroundMusic.pause();
+                backgroundMusic.currentTime = 0;
+            }
         }
 
         function showQuestion() {
@@ -419,6 +485,9 @@
         }
 
         function backToCamera() {
+            // Hentikan musik latar
+            stopBackgroundMusic();
+            
             // Reset game
             currentPlayer = null;
             currentQuestionIndex = 0;
@@ -430,5 +499,5 @@
             document.getElementById('webcam-section').classList.remove('hidden');
         }
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98aae06837ca1c0e',t:'MTc1OTgxMzY2NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98ab44b940fb4ac2',t:'MTc1OTgxNzc3My4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

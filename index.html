@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Siklus Air - Adaptive Learning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            box-sizing: border-box;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .pulse-border {
+            animation: pulseBorder 2s infinite;
+        }
+        @keyframes pulseBorder {
+            0%, 100% { border-color: #3b82f6; }
+            50% { border-color: #60a5fa; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 min-h-screen">
+    <!-- Header dengan info pemain -->
+    <div id="player-info" class="fixed top-4 left-4 bg-white rounded-lg shadow-lg p-3 z-10 hidden">
+        <div class="flex items-center space-x-3">
+            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <div>
+                <div id="player-name" class="font-bold text-gray-800"></div>
+                <div id="player-level" class="text-sm text-gray-600"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kontainer utama -->
+    <div class="container mx-auto px-4 py-8">
+        <!-- Judul -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white mb-2">🌊 Belajar Siklus Air 🌊</h1>
+            <p class="text-blue-100">Belajar siklus air dengan tingkat kesulitan yang disesuaikan untukmu!</p>
+        </div>
+
+        <!-- Area webcam dan kontrol -->
+        <div id="webcam-section" class="bg-white rounded-xl shadow-2xl p-6 mb-6 max-w-md mx-auto">
+            <div class="text-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">Pengenalan Wajah</h2>
+                <button id="start-btn" onclick="init()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                    🎥 Mulai Kamera
+                </button>
+            </div>
+            
+            <div id="webcam-container" class="flex justify-center mb-4"></div>
+            <div id="label-container" class="text-sm text-gray-600 hidden"></div>
+        </div>
+
+        <!-- Modal konfirmasi -->
+        <div id="confirmation-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 hidden">
+            <div class="bg-white rounded-xl p-8 max-w-sm mx-4 text-center fade-in">
+                <div class="text-6xl mb-4">👋</div>
+                <h3 id="greeting-text" class="text-xl font-bold text-gray-800 mb-6"></h3>
+                <div class="flex space-x-4">
+                    <button onclick="confirmIdentity(true)" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                        ✅ Ya, benar
+                    </button>
+                    <button onclick="confirmIdentity(false)" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 px-4 rounded-lg font-medium transition-colors">
+                        ❌ Bukan saya
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Area game -->
+        <div id="game-area" class="hidden">
+            <div class="bg-white rounded-xl shadow-2xl p-8 max-w-4xl mx-auto">
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Soal Siklus Air</h2>
+                    <div id="question-level" class="text-sm text-blue-600 font-medium"></div>
+                </div>
+                
+                <div id="question-container" class="mb-8">
+                    <div id="question-text" class="text-lg text-gray-800 mb-6 leading-relaxed"></div>
+                    <div id="question-options" class="space-y-3"></div>
+                </div>
+
+                <div id="result-container" class="hidden text-center">
+                    <div id="result-message" class="text-xl font-bold mb-4"></div>
+                    <div id="explanation" class="text-gray-700 mb-6 p-4 bg-blue-50 rounded-lg"></div>
+                    <button onclick="nextQuestion()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                        Soal Berikutnya ➡️
+                    </button>
+                </div>
+
+                <div class="text-center mt-6">
+                    <button onclick="backToCamera()" class="text-blue-600 hover:text-blue-800 font-medium">
+                        🔄 Kembali ke Kamera
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+    
+    <script>
+        // Data pemain dan soal
+        const playerData = {
+            'suardi': {
+                level: 'Prestructural',
+                description: 'Level Dasar - Mengenal konsep sederhana',
+                questions: [
+                    {
+                        question: "Apa yang terjadi ketika air dipanaskan matahari?",
+                        options: ["Air menjadi dingin", "Air menguap", "Air membeku", "Air berubah warna"],
+                        correct: 1,
+                        explanation: "Ketika air dipanaskan matahari, air akan menguap dan naik ke udara."
+                    },
+                    {
+                        question: "Dari mana asal hujan?",
+                        options: ["Dari tanah", "Dari awan", "Dari pohon", "Dari angin"],
+                        correct: 1,
+                        explanation: "Hujan berasal dari awan yang terbentuk dari uap air yang mengembun."
+                    }
+                ]
+            },
+            'ewan': {
+                level: 'Relational',
+                description: 'Level Lanjut - Memahami hubungan antar konsep',
+                questions: [
+                    {
+                        question: "Bagaimana hubungan antara evaporasi, kondensasi, dan presipitasi dalam siklus air?",
+                        options: [
+                            "Ketiganya tidak berhubungan",
+                            "Evaporasi → Kondensasi → Presipitasi membentuk siklus berkelanjutan",
+                            "Hanya evaporasi yang penting",
+                            "Kondensasi terjadi sebelum evaporasi"
+                        ],
+                        correct: 1,
+                        explanation: "Evaporasi mengubah air menjadi uap, kondensasi membentuk awan, dan presipitasi menghasilkan hujan dalam siklus yang berkelanjutan."
+                    },
+                    {
+                        question: "Mengapa siklus air penting bagi kehidupan di Bumi?",
+                        options: [
+                            "Hanya untuk mengisi sungai",
+                            "Mendistribusikan air bersih dan mengatur iklim global",
+                            "Membuat awan terlihat indah",
+                            "Mendinginkan udara saja"
+                        ],
+                        correct: 1,
+                        explanation: "Siklus air mendistribusikan air bersih ke seluruh Bumi dan membantu mengatur iklim global."
+                    }
+                ]
+            },
+            'satar': {
+                level: 'Multistructural',
+                description: 'Level Menengah - Memahami beberapa aspek terpisah',
+                questions: [
+                    {
+                        question: "Sebutkan 3 tahap utama dalam siklus air:",
+                        options: [
+                            "Evaporasi, Kondensasi, Presipitasi",
+                            "Pemanasan, Pendinginan, Pembekuan",
+                            "Penguapan, Pencairan, Penyubliman",
+                            "Infiltrasi, Perkolasi, Transpirasi"
+                        ],
+                        correct: 0,
+                        explanation: "Tiga tahap utama siklus air adalah Evaporasi (penguapan), Kondensasi (pembentukan awan), dan Presipitasi (hujan/salju)."
+                    },
+                    {
+                        question: "Apa perbedaan antara evaporasi dan transpirasi?",
+                        options: [
+                            "Tidak ada perbedaan",
+                            "Evaporasi dari permukaan air, transpirasi dari tumbuhan",
+                            "Evaporasi lebih cepat dari transpirasi",
+                            "Transpirasi hanya terjadi di malam hari"
+                        ],
+                        correct: 1,
+                        explanation: "Evaporasi adalah penguapan air dari permukaan air, sedangkan transpirasi adalah penguapan air melalui daun tumbuhan."
+                    }
+                ]
+            },
+            'atika': {
+                level: 'Multistructural',
+                description: 'Level Menengah - Memahami beberapa aspek terpisah',
+                questions: [
+                    {
+                        question: "Faktor apa saja yang mempengaruhi kecepatan evaporasi?",
+                        options: [
+                            "Hanya suhu",
+                            "Suhu, kelembaban, dan kecepatan angin",
+                            "Hanya kelembaban udara",
+                            "Waktu dan tempat saja"
+                        ],
+                        correct: 1,
+                        explanation: "Kecepatan evaporasi dipengaruhi oleh suhu (semakin tinggi semakin cepat), kelembaban udara (semakin rendah semakin cepat), dan kecepatan angin."
+                    },
+                    {
+                        question: "Apa yang dimaksud dengan infiltrasi dalam siklus air?",
+                        options: [
+                            "Air yang menguap ke udara",
+                            "Air hujan yang meresap ke dalam tanah",
+                            "Air yang mengalir di permukaan",
+                            "Air yang membeku menjadi es"
+                        ],
+                        correct: 1,
+                        explanation: "Infiltrasi adalah proses meresapnya air hujan ke dalam tanah, yang kemudian menjadi air tanah."
+                    }
+                ]
+            }
+        };
+
+        // Variabel global
+        const URL = "https://teachablemachine.withgoogle.com/models/d8zap63bU/";
+        let model, webcam, labelContainer, maxPredictions;
+        let currentPlayer = null;
+        let currentQuestionIndex = 0;
+        let isRecognitionPaused = false;
+
+        // Inisialisasi kamera dan model
+        async function init() {
+            try {
+                document.getElementById('start-btn').textContent = '⏳ Memuat...';
+                document.getElementById('start-btn').disabled = true;
+
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+
+                const flip = true;
+                webcam = new tmImage.Webcam(200, 200, flip);
+                await webcam.setup();
+                await webcam.play();
+                
+                window.requestAnimationFrame(loop);
+
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+                webcam.canvas.className = "rounded-lg border-4 pulse-border";
+                
+                labelContainer = document.getElementById("label-container");
+                labelContainer.innerHTML = '';
+                for (let i = 0; i < maxPredictions; i++) {
+                    const div = document.createElement("div");
+                    div.className = "text-xs mb-1";
+                    labelContainer.appendChild(div);
+                }
+
+                document.getElementById('start-btn').style.display = 'none';
+            } catch (error) {
+                console.error('Error initializing:', error);
+                document.getElementById('start-btn').textContent = '❌ Error - Coba Lagi';
+                document.getElementById('start-btn').disabled = false;
+            }
+        }
+
+        async function loop() {
+            if (webcam && !isRecognitionPaused) {
+                webcam.update();
+                await predict();
+            }
+            window.requestAnimationFrame(loop);
+        }
+
+        async function predict() {
+            if (!model || !webcam) return;
+            
+            const prediction = await model.predict(webcam.canvas);
+            
+            for (let i = 0; i < maxPredictions; i++) {
+                const className = prediction[i].className.toLowerCase();
+                const probability = prediction[i].probability;
+                
+                const classPrediction = `${prediction[i].className}: ${(probability * 100).toFixed(1)}%`;
+                labelContainer.childNodes[i].innerHTML = classPrediction;
+                
+                // Cek akurasi 90% atau lebih
+                if (probability >= 0.9 && playerData[className] && !isRecognitionPaused) {
+                    isRecognitionPaused = true;
+                    showConfirmation(className);
+                    break;
+                }
+            }
+        }
+
+        function showConfirmation(playerName) {
+            const modal = document.getElementById('confirmation-modal');
+            const greetingText = document.getElementById('greeting-text');
+            
+            const greeting = `Halo, apakah kamu ${playerName.charAt(0).toUpperCase() + playerName.slice(1)}?`;
+            greetingText.textContent = greeting;
+            modal.classList.remove('hidden');
+            
+            // Text to Speech
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(greeting);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.8;
+                utterance.pitch = 1;
+                speechSynthesis.speak(utterance);
+            }
+            
+            // Simpan nama pemain sementara
+            window.tempPlayerName = playerName;
+        }
+
+        function confirmIdentity(isConfirmed) {
+            const modal = document.getElementById('confirmation-modal');
+            modal.classList.add('hidden');
+            
+            if (isConfirmed) {
+                currentPlayer = window.tempPlayerName;
+                startGame();
+            } else {
+                // Lanjutkan pengenalan wajah
+                setTimeout(() => {
+                    isRecognitionPaused = false;
+                }, 2000);
+            }
+        }
+
+        function startGame() {
+            const player = playerData[currentPlayer];
+            
+            // Update info pemain
+            document.getElementById('player-name').textContent = currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
+            document.getElementById('player-level').textContent = `Level: ${player.level}`;
+            document.getElementById('player-info').classList.remove('hidden');
+            
+            // Sembunyikan webcam dan tampilkan game
+            document.getElementById('webcam-section').classList.add('hidden');
+            document.getElementById('game-area').classList.remove('hidden');
+            
+            // Reset dan mulai soal
+            currentQuestionIndex = 0;
+            showQuestion();
+        }
+
+        function showQuestion() {
+            const player = playerData[currentPlayer];
+            const question = player.questions[currentQuestionIndex];
+            
+            document.getElementById('question-level').textContent = `${player.level} - ${player.description}`;
+            document.getElementById('question-text').textContent = question.question;
+            document.getElementById('result-container').classList.add('hidden');
+            document.getElementById('question-container').classList.remove('hidden');
+            
+            const optionsContainer = document.getElementById('question-options');
+            optionsContainer.innerHTML = '';
+            
+            question.options.forEach((option, index) => {
+                const button = document.createElement('button');
+                button.className = 'w-full text-left p-4 bg-gray-50 hover:bg-blue-50 border border-gray-200 rounded-lg transition-colors';
+                button.textContent = `${String.fromCharCode(65 + index)}. ${option}`;
+                button.onclick = () => selectAnswer(index);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        function selectAnswer(selectedIndex) {
+            const player = playerData[currentPlayer];
+            const question = player.questions[currentQuestionIndex];
+            const isCorrect = selectedIndex === question.correct;
+            
+            // Disable semua tombol
+            const buttons = document.querySelectorAll('#question-options button');
+            buttons.forEach((btn, index) => {
+                btn.disabled = true;
+                if (index === question.correct) {
+                    btn.classList.add('bg-green-100', 'border-green-500', 'text-green-800');
+                } else if (index === selectedIndex && !isCorrect) {
+                    btn.classList.add('bg-red-100', 'border-red-500', 'text-red-800');
+                }
+            });
+            
+            // Tampilkan hasil
+            setTimeout(() => {
+                document.getElementById('question-container').classList.add('hidden');
+                document.getElementById('result-container').classList.remove('hidden');
+                
+                const resultMessage = document.getElementById('result-message');
+                if (isCorrect) {
+                    resultMessage.textContent = '🎉 Benar! Hebat sekali!';
+                    resultMessage.className = 'text-xl font-bold mb-4 text-green-600';
+                } else {
+                    resultMessage.textContent = '💪 Belum tepat, tapi tetap semangat!';
+                    resultMessage.className = 'text-xl font-bold mb-4 text-orange-600';
+                }
+                
+                document.getElementById('explanation').textContent = question.explanation;
+            }, 1500);
+        }
+
+        function nextQuestion() {
+            const player = playerData[currentPlayer];
+            currentQuestionIndex++;
+            
+            if (currentQuestionIndex < player.questions.length) {
+                showQuestion();
+            } else {
+                // Selesai semua soal
+                document.getElementById('result-container').innerHTML = `
+                    <div class="text-center">
+                        <div class="text-6xl mb-4">🏆</div>
+                        <h3 class="text-2xl font-bold text-green-600 mb-4">Selamat! Kamu telah menyelesaikan semua soal!</h3>
+                        <p class="text-gray-700 mb-6">Terima kasih telah belajar tentang siklus air bersama kami.</p>
+                        <button onclick="backToCamera()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                            🔄 Mulai Lagi
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function backToCamera() {
+            // Reset game
+            currentPlayer = null;
+            currentQuestionIndex = 0;
+            isRecognitionPaused = false;
+            
+            // Sembunyikan info pemain dan game
+            document.getElementById('player-info').classList.add('hidden');
+            document.getElementById('game-area').classList.add('hidden');
+            document.getElementById('webcam-section').classList.remove('hidden');
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98aae06837ca1c0e',t:'MTc1OTgxMzY2NC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
